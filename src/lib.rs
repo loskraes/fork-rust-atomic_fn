@@ -3,7 +3,7 @@
 //! A small, no_std crate that adds atomic function pointers.
 //! See [`AtomicFnPtr`] for examples.
 
-use core::fmt::{self, Formatter, Debug, Pointer};
+use core::fmt::{self, Debug, Formatter, Pointer};
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicPtr, Ordering};
 
@@ -15,68 +15,68 @@ pub struct AtomicFnPtr<T: FnPtr> {
 
 impl<T: FnPtr> AtomicFnPtr<T> {
     /// Creates a new [`AtomicFnPtr`].
-    /// 
+    ///
     /// Note that in some cases you may gave to cast/coerce the `fn_pointer` to its type, since Rust's type system
-    /// otherwise assigns a custom type signature to each named function and anonymous closure. See the related 
+    /// otherwise assigns a custom type signature to each named function and anonymous closure. See the related
     /// examples. If you run into this issue, it will be at compile time.
-    /// 
-    /// # Examples 
-    /// 
+    ///
+    /// # Examples
+    ///
     /// Constructing an [`AtomicFnPtr`] from a named function without casting fails to compile.
     /// ```compile_fail
     /// use std::sync::atomic::Ordering;
     /// use atomic_fn::AtomicFnPtr;
-    /// 
+    ///
     /// fn fn_a() {
     ///     println!("Hello from fn_a");
     /// }
-    /// 
+    ///
     /// let atomic_ptr = AtomicFnPtr::new(fn_a);
     /// ```
-    /// 
+    ///
     /// Constructing an [`AtomicFnPtr`] from a named function with a cast succeeds.
     /// ```rust
     /// use std::sync::atomic::Ordering;
     /// use atomic_fn::AtomicFnPtr;
-    /// 
+    ///
     /// fn fn_a() {
     ///     println!("Hello from fn_a");
     /// }
-    /// 
+    ///
     /// let atomic_ptr = AtomicFnPtr::new(fn_a as fn() -> ());
     /// ```
-    /// 
+    ///
     /// Constructing an [`AtomicFnPtr`] from an anonymous closure without type coercion fails to compile.
-    /// 
+    ///
     /// ```compile_fail
     /// use std::sync::atomic::Ordering;
     /// use atomic_fn::AtomicFnPtr;
-    /// 
+    ///
     /// let fn_a = || {
     ///     println!("Hello from fn_a");
     /// };
-    /// 
+    ///
     /// let atomic_ptr = AtomicFnPtr::new(fn_a);
     /// ```
-    /// 
+    ///
     /// Constructing an [`AtomicFnPtr`] from an anonymous closure with type coercion succeeds.
-    /// 
+    ///
     /// ```rust
     /// use std::sync::atomic::Ordering;
     /// use atomic_fn::AtomicFnPtr;
-    /// 
+    ///
     /// let fn_a: fn() -> () = || {
     ///     println!("Hello from fn_a");
     /// };
-    /// 
+    ///
     /// let atomic_ptr = AtomicFnPtr::new(fn_a);
     /// ```
-    /// 
+    ///
     #[inline]
     pub fn new(fn_ptr: T) -> AtomicFnPtr<T> {
         AtomicFnPtr {
             atomic: AtomicPtr::new(fn_ptr.as_void_ptr()),
-            phantom: PhantomData
+            phantom: PhantomData,
         }
     }
 
@@ -85,16 +85,13 @@ impl<T: FnPtr> AtomicFnPtr<T> {
     /// This is safe because passing `self` by value guarantees that no other threads are
     /// concurrently accessing the atomic data.
     #[inline]
-    pub fn into_inner(self) -> T
-    {
+    pub fn into_inner(self) -> T {
         let void_ptr: *mut () = self.atomic.into_inner();
 
         // SAFETY: Transmutation from a raw pointer into a function pointer is one of the recommended use-cases
-        // and in this case is sound because AtomicFnPtr cannot be constructed without passing in a function pointer 
+        // and in this case is sound because AtomicFnPtr cannot be constructed without passing in a function pointer
         // of type T -- thus transmuting back to T is fine here.
-        unsafe {
-            T::transmute_from_void(void_ptr)
-        }
+        unsafe { T::transmute_from_void(void_ptr) }
     }
 
     /// Returns a mutable reference to the underlying pointer.
@@ -105,12 +102,10 @@ impl<T: FnPtr> AtomicFnPtr<T> {
     pub fn get_mut(&mut self) -> &mut T {
         let mut_ref_to_void_ptr = self.atomic.get_mut();
 
-        // SAFETY: 
-        // The void pointer to function pointer transmution we do here is safe for the same reasons as the one 
+        // SAFETY:
+        // The void pointer to function pointer transmution we do here is safe for the same reasons as the one
         // above.
-        unsafe {
-            core::mem::transmute(mut_ref_to_void_ptr)
-        }
+        unsafe { core::mem::transmute(mut_ref_to_void_ptr) }
     }
 }
 
@@ -127,9 +122,7 @@ impl<T: FnPtr> AtomicFnPtr<T> {
         let void_ptr: *mut () = self.atomic.load(order);
 
         // SAFETY: This is safe for the same reasons as above.
-        unsafe {
-            T::transmute_from_void(void_ptr)
-        }
+        unsafe { T::transmute_from_void(void_ptr) }
     }
 
     /// Stores a value into the pointer.
@@ -157,9 +150,7 @@ impl<T: FnPtr> AtomicFnPtr<T> {
         let void_ptr = self.atomic.swap(fn_ptr.as_void_ptr(), order);
 
         // SAFETY: This is safe for the same reasons as above.
-        unsafe {
-            T::transmute_from_void(void_ptr)
-        }
+        unsafe { T::transmute_from_void(void_ptr) }
     }
 
     /// Stores a value into the pointer if the current value is the same as the `current` value.
@@ -215,13 +206,17 @@ impl<T: FnPtr> AtomicFnPtr<T> {
         success: Ordering,
         failure: Ordering,
     ) -> Result<T, T> {
-        let result: Result<_, _> = self.atomic
-            .compare_exchange(current.as_void_ptr(), new.as_void_ptr(), success, failure);
+        let result: Result<_, _> = self.atomic.compare_exchange(
+            current.as_void_ptr(),
+            new.as_void_ptr(),
+            success,
+            failure,
+        );
 
         // SAFETY: Safe for the same reasons as above.
         match result {
             Ok(void_ptr) => Ok(unsafe { T::transmute_from_void(void_ptr) }),
-            Err(void_ptr) => Err(unsafe { T::transmute_from_void(void_ptr) })
+            Err(void_ptr) => Err(unsafe { T::transmute_from_void(void_ptr) }),
         }
     }
 
@@ -284,13 +279,17 @@ impl<T: FnPtr> AtomicFnPtr<T> {
         success: Ordering,
         failure: Ordering,
     ) -> Result<T, T> {
-        let result: Result<_, _> = self.atomic
-            .compare_exchange_weak(current.as_void_ptr(), new.as_void_ptr(), success, failure);
-        
+        let result: Result<_, _> = self.atomic.compare_exchange_weak(
+            current.as_void_ptr(),
+            new.as_void_ptr(),
+            success,
+            failure,
+        );
+
         // SAFETY: Safe for the same reasons as above.
         match result {
             Ok(void_ptr) => Ok(unsafe { T::transmute_from_void(void_ptr) }),
-            Err(void_ptr) => Err(unsafe { T::transmute_from_void(void_ptr) })
+            Err(void_ptr) => Err(unsafe { T::transmute_from_void(void_ptr) }),
         }
     }
 
@@ -360,17 +359,19 @@ impl<T: FnPtr> AtomicFnPtr<T> {
     where
         F: FnMut(T) -> Option<T>,
     {
-        let result: Result<_, _> = self.atomic.fetch_update(set_order, fetch_order, move |void_ptr: *mut ()| {
-            // SAFETY: Safe for the same reasons as above.
-            let fn_ptr = unsafe { T::transmute_from_void(void_ptr) };
-            let func_output = (func)(fn_ptr);
-            func_output.map(T::as_void_ptr)
-        });
+        let result: Result<_, _> =
+            self.atomic
+                .fetch_update(set_order, fetch_order, move |void_ptr: *mut ()| {
+                    // SAFETY: Safe for the same reasons as above.
+                    let fn_ptr = unsafe { T::transmute_from_void(void_ptr) };
+                    let func_output = (func)(fn_ptr);
+                    func_output.map(T::as_void_ptr)
+                });
 
         // SAFETY: Safe for the same reasons as above.
         match result {
             Ok(void_ptr) => Ok(unsafe { T::transmute_from_void(void_ptr) }),
-            Err(void_ptr) => Err(unsafe { T::transmute_from_void(void_ptr) })
+            Err(void_ptr) => Err(unsafe { T::transmute_from_void(void_ptr) }),
         }
     }
 }
@@ -415,9 +416,9 @@ pub trait FnPtr: Copy + sealed::FnPtrSealed /* Eq + Ord + Hash + Pointer + Debug
     fn as_void_ptr(self) -> *mut ();
 
     /// Call [core::mem::transmute] from the given void pointer to this type.
-    /// This will give a compiler error (E0512) if this type is not pointer sized (should never happen 
-    /// given that this trait is sealed). 
-    /// 
+    /// This will give a compiler error (E0512) if this type is not pointer sized (should never happen
+    /// given that this trait is sealed).
+    ///
     /// # Safety
     /// This is unsafe for the same reasons as [core::mem::transmute].
     unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self;
@@ -426,7 +427,7 @@ pub trait FnPtr: Copy + sealed::FnPtrSealed /* Eq + Ord + Hash + Pointer + Debug
 macro_rules! impl_fn_ptr {
     ($($arg:ident),+) => {
         impl<Ret, $($arg),+> sealed::FnPtrSealed for fn($($arg),+) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for fn($($arg),+) -> Ret { 
+        impl<Ret, $($arg),+> FnPtr for fn($($arg),+) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -441,7 +442,7 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -452,29 +453,29 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
         }
-        
+
         impl<Ret, $($arg),+> sealed::FnPtrSealed for unsafe extern "C" fn($($arg),+) -> Ret {}
         impl<Ret, $($arg),+> FnPtr for unsafe extern "C" fn($($arg),+) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
         }
-        
+
         impl<Ret, $($arg),+> sealed::FnPtrSealed for extern "C" fn($($arg),+ , ...) -> Ret {}
         impl<Ret, $($arg),+> FnPtr for extern "C" fn($($arg),+ , ...) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -485,7 +486,7 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -499,7 +500,7 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -510,7 +511,7 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -521,7 +522,7 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -532,7 +533,7 @@ macro_rules! impl_fn_ptr {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
-            
+
             unsafe fn transmute_from_void(void_ptr: *mut ()) -> Self {
                 core::mem::transmute(void_ptr)
             }
@@ -541,6 +542,7 @@ macro_rules! impl_fn_ptr {
 }
 
 impl_fn_ptr!();
+impl_fn_ptr!(A);
 impl_fn_ptr!(A, B);
 impl_fn_ptr!(A, B, C);
 impl_fn_ptr!(A, B, C, D);
@@ -579,8 +581,8 @@ mod tests {
 
     #[test]
     fn test_load_store() {
-        let a: fn() = || { panic!("panic from a") };
-        let b: fn() = || { panic!("panic from b") };
+        let a: fn() = || panic!("panic from a");
+        let b: fn() = || panic!("panic from b");
 
         let atomic: AtomicFnPtr<fn()> = AtomicFnPtr::new(a);
         assert_eq!(atomic.load(Ordering::Relaxed), a);
