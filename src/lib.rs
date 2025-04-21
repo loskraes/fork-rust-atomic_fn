@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(const_trait_impl)]
 
 //! A small, no_std crate that adds atomic function pointers.
 //! See [`AtomicFnPtr`] for examples.
@@ -73,7 +74,10 @@ impl<T: FnPtr> AtomicFnPtr<T> {
     /// ```
     ///
     #[inline]
-    pub fn new(fn_ptr: T) -> AtomicFnPtr<T> {
+    pub const fn new(fn_ptr: T) -> AtomicFnPtr<T>
+    where
+        T: ~const FnPtr,
+    {
         AtomicFnPtr {
             atomic: AtomicPtr::new(fn_ptr.as_void_ptr()),
             phantom: PhantomData,
@@ -411,6 +415,7 @@ mod sealed {
     pub trait FnPtrSealed: Copy {}
 }
 
+#[const_trait]
 pub trait FnPtr: Copy + sealed::FnPtrSealed /* Eq + Ord + Hash + Pointer + Debug */ {
     /// Cast this function pointer to a `*mut ()` using a simple `as *mut ()` cast.
     fn as_void_ptr(self) -> *mut ();
@@ -426,8 +431,8 @@ pub trait FnPtr: Copy + sealed::FnPtrSealed /* Eq + Ord + Hash + Pointer + Debug
 
 macro_rules! impl_fn_ptr {
     ($($arg:ident),+) => {
-        impl<Ret, $($arg),+> sealed::FnPtrSealed for fn($($arg),+) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for fn($($arg),+) -> Ret {
+        impl<'a, Ret, $($arg),+> sealed::FnPtrSealed for fn(&'a $($arg),+) -> Ret {}
+        impl<'a, Ret, $($arg),+> const FnPtr for fn(&'a $($arg),+) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -438,7 +443,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret, $($arg),+> sealed::FnPtrSealed for unsafe fn($($arg),+) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for unsafe fn($($arg),+) -> Ret {
+        impl<Ret, $($arg),+> const FnPtr for unsafe fn($($arg),+) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -449,7 +454,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret, $($arg),+> sealed::FnPtrSealed for extern "C" fn($($arg),+) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for extern "C" fn($($arg),+) -> Ret {
+        impl<Ret, $($arg),+> const FnPtr for extern "C" fn($($arg),+) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -460,7 +465,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret, $($arg),+> sealed::FnPtrSealed for unsafe extern "C" fn($($arg),+) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for unsafe extern "C" fn($($arg),+) -> Ret {
+        impl<Ret, $($arg),+> const FnPtr for unsafe extern "C" fn($($arg),+) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -471,7 +476,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret, $($arg),+> sealed::FnPtrSealed for extern "C" fn($($arg),+ , ...) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for extern "C" fn($($arg),+ , ...) -> Ret {
+        impl<Ret, $($arg),+> const FnPtr for extern "C" fn($($arg),+ , ...) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -482,7 +487,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret, $($arg),+> sealed::FnPtrSealed for unsafe extern "C" fn($($arg),+ , ...) -> Ret {}
-        impl<Ret, $($arg),+> FnPtr for unsafe extern "C" fn($($arg),+ , ...) -> Ret {
+        impl<Ret, $($arg),+> const FnPtr for unsafe extern "C" fn($($arg),+ , ...) -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -496,7 +501,7 @@ macro_rules! impl_fn_ptr {
     // Variadic functions must have at least one non variadic arg
     () => {
         impl<Ret> sealed::FnPtrSealed for fn() -> Ret {}
-        impl<Ret> FnPtr for fn() -> Ret {
+        impl<Ret> const FnPtr for fn() -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -507,7 +512,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret> sealed::FnPtrSealed for unsafe fn() -> Ret {}
-        impl<Ret> FnPtr for unsafe fn() -> Ret {
+        impl<Ret> const FnPtr for unsafe fn() -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -518,7 +523,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret> sealed::FnPtrSealed for extern "C" fn() -> Ret {}
-        impl<Ret> FnPtr for extern "C" fn() -> Ret {
+        impl<Ret> const FnPtr for extern "C" fn() -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -529,7 +534,7 @@ macro_rules! impl_fn_ptr {
         }
 
         impl<Ret> sealed::FnPtrSealed for unsafe extern "C" fn() -> Ret {}
-        impl<Ret> FnPtr for unsafe extern "C" fn() -> Ret {
+        impl<Ret> const FnPtr for unsafe extern "C" fn() -> Ret {
             fn as_void_ptr(self) -> *mut () {
                 self as *mut ()
             }
@@ -541,7 +546,7 @@ macro_rules! impl_fn_ptr {
     };
 }
 
-impl_fn_ptr!();
+//impl_fn_ptr!();
 impl_fn_ptr!(A);
 impl_fn_ptr!(A, B);
 impl_fn_ptr!(A, B, C);
